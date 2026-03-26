@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Provider Dashboard - Smart Local Services</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body style="background: var(--bg-color);">
+
+    <header>
+        <a href="../index.html" class="logo">🛠️ LocalServe</a>
+        <nav>
+            <ul id="auth-links"></ul> 
+            <ul id="user-nav" style="display: none;"></ul>
+        </nav>
+    </header>
+
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h2>Provider Dashboard</h2>
+            <button class="btn" onclick="openAddServiceModal()">Add New Service</button>
+        </div>
+        
+        <div id="dashAlert"></div>
+
+        <h3>Manage Bookings</h3>
+        <div class="table-container" style="margin-bottom: 3rem;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th>Service</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="bookingsTableBody">
+                    <tr><td colspan="6">Loading bookings...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>My Services</h3>
+        <div class="grid" id="myServicesGrid">
+            <p>Loading your services...</p>
+        </div>
+    </div>
+
+    <!-- Add Service Modal -->
+    <div id="addServiceModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 2rem; border-radius: 1rem; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+            <h3>Add New Service</h3>
+            <div id="serviceAlertModal"></div>
+            <div class="form-group">
+                <label>Service Name</label>
+                <input type="text" id="addServiceName" required placeholder="e.g. Plumbing Repair">
+            </div>
+            <div class="form-group">
+                <label>Price ($)</label>
+                <input type="number" step="0.01" id="addServicePrice" required placeholder="50.00">
+            </div>
+            <div class="form-group">
+                <label>Location</label>
+                <input type="text" id="addServiceLocation" required placeholder="City or Area">
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="addServiceDesc" rows="4" required placeholder="Describe what you offer..."></textarea>
+            </div>
+            <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                <button class="btn" onclick="submitNewService()" id="confirmServiceBtn" style="flex: 1;">Create Service</button>
+                <button class="btn btn-outline" onclick="closeAddServiceModal()" style="flex: 1;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/main.js"></script>
+    <script>
+        let user = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            user = JSON.parse(localStorage.getItem('sls_user'));
+            if (!user || user.role !== 'provider') {
+                window.location.href = 'login.html';
+                return;
+            }
+            fetchProviderBookings();
+            fetchMyServices();
+        });
+
+        async function fetchProviderBookings() {
+            const tbody = document.getElementById('bookingsTableBody');
+            try {
+                const res = await fetch(`${API_URL}/bookings/get_bookings.php?provider_id=${user.id}`);
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    tbody.innerHTML = '';
+                    if (data.data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">You have no bookings yet.</td></tr>';
+                        return;
+                    }
+
+                    data.data.forEach(b => {
+                        let actionHtml = '';
+                        if (b.status === 'pending') {
+                            actionHtml = `
+                                <button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="updateBookingStatus(${b.id}, 'accepted')">Accept</button>
+                                <button class="btn btn-outline" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; color:red; border-color:red;" onclick="updateBookingStatus(${b.id}, 'rejected')">Reject</button>
+                            `;
+                        } else if (b.status === 'accepted') {
+                            actionHtml = `<button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="updateBookingStatus(${b.id}, 'completed')">Mark Completed</button>`;
+                        } else {
+                            actionHtml = '<span style="color:var(--text-light); font-size: 0.85rem;">No actions</span>';
+                        }
+
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${b.booking_date}</td>
+                                <td>${b.customer_name}</td>
+                                <td>${b.service_name}</td>
+                                <td> ₹${b.price}</td>
+                                <td><span class="badge ${b.status}">${b.status}</span></td>
+                                <td>${actionHtml}</td>
+                            </tr>
+                        `;
+                    });
+                }
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="6" class="alert error">Failed to load bookings.</td></tr>';
+            }
+        }
+
+        async function fetchMyServices() {
+            const container = document.getElementById('myServicesGrid');
+            try {
+                const res = await fetch(`${API_URL}/services/get_services.php?provider_id=${user.id}`);
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    container.innerHTML = '';
+                    if (data.data.length === 0) {
+                        container.innerHTML = '<p>You have not created any services yet.</p>';
+                        return;
+                    }
+
+                    data.data.forEach(s => {
+                        let stars = s.avg_rating > 0 ? '⭐'.repeat(Math.round(s.avg_rating)) : 'New';
+                        container.innerHTML += `
+                            <div class="card">
+                                <h3>${s.service_name}</h3>
+                                <div class="location">📍 ${s.location}</div>
+                                <div class="price"> ₹${s.price}</div>
+                                <div style="margin-bottom: 1rem;">
+                                    <span class="stars">${stars}</span> 
+                                    <small>(${s.review_count} reviews)</small>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+            } catch (err) {
+                container.innerHTML = '<p class="alert error">Failed to load services.</p>';
+            }
+        }
+
+        async function updateBookingStatus(bookingId, status) {
+            if (!confirm(`Are you sure you want to mark this booking as ${status}?`)) return;
+            
+            try {
+                const res = await fetch(`${API_URL}/bookings/update_booking.php`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ booking_id: bookingId, status: status })
+                });
+                const data = await res.json();
+                
+                if(data.status === 'success') {
+                    fetchProviderBookings();
+                } else {
+                    alert(data.message || "Failed to update status.");
+                }
+            } catch (e) {
+                alert("Network error.");
+            }
+        }
+
+        function openAddServiceModal() {
+            document.getElementById('addServiceModal').style.display = 'flex';
+        }
+
+        function closeAddServiceModal() {
+            document.getElementById('addServiceModal').style.display = 'none';
+        }
+
+        async function submitNewService() {
+            const btn = document.getElementById('confirmServiceBtn');
+            btn.textContent = 'Saving...';
+            btn.disabled = true;
+
+            const payload = {
+                provider_id: user.id,
+                service_name: document.getElementById('addServiceName').value,
+                price: parseFloat(document.getElementById('addServicePrice').value),
+                location: document.getElementById('addServiceLocation').value,
+                description: document.getElementById('addServiceDesc').value
+            };
+
+            try {
+                const res = await fetch(`${API_URL}/services/add_service.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    showAlert('serviceAlertModal', 'Service created successfully!', 'success');
+                    fetchMyServices();
+                    setTimeout(() => {
+                        closeAddServiceModal();
+                        document.getElementById('addServiceName').value = '';
+                        document.getElementById('addServicePrice').value = '';
+                        document.getElementById('addServiceLocation').value = '';
+                        document.getElementById('addServiceDesc').value = '';
+                    }, 1000);
+                } else {
+                    showAlert('serviceAlertModal', data.message || 'Error creating service.', 'error');
+                }
+            } catch (err) {
+                showAlert('serviceAlertModal', 'Network error.', 'error');
+            } finally {
+                btn.textContent = 'Create Service';
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

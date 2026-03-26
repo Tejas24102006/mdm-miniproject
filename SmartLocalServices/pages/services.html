@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find Services - Smart Local Services</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        .filters {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        .filters input {
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            flex-grow: 1;
+        }
+    </style>
+</head>
+<body style="background: var(--bg-color);">
+
+    <header>
+        <a href="../index.html" class="logo">🛠️ LocalServe</a>
+        <nav>
+            <ul id="auth-links"></ul> 
+            <ul id="user-nav" style="display: none;"></ul>
+        </nav>
+    </header>
+
+    <div class="container">
+        <h2>Find the Right Professional</h2>
+        <div class="filters">
+            <input type="text" id="searchInput" placeholder="Search by name or description...">
+            <input type="text" id="locationInput" placeholder="Location...">
+            <button class="btn" onclick="fetchServices()">Search</button>
+        </div>
+
+        <div id="serviceAlert"></div>
+        <div class="grid" id="servicesGrid">
+            <p>Loading services...</p>
+        </div>
+    </div>
+
+    <!-- Booking Modal Base -->
+    <div id="bookingModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
+        <div style="background: white; padding: 2rem; border-radius: 1rem; max-width: 400px; width: 90%;">
+            <h3>Book Service</h3>
+            <p id="modalServiceName" style="margin-bottom: 1rem; font-weight: 500;"></p>
+            <div id="modalAlert"></div>
+            <div class="form-group">
+                <label>Select Date</label>
+                <input type="date" id="bookingDate" required>
+            </div>
+            <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                <button class="btn" onclick="submitBooking()" id="confirmBookBtn" style="flex: 1;">Confirm Booking</button>
+                <button class="btn btn-outline" onclick="closeModal()" style="flex: 1;">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../js/main.js"></script>
+    <script>
+        let currentServiceId = null;
+
+        async function fetchServices() {
+            const container = document.getElementById('servicesGrid');
+            const search = document.getElementById('searchInput').value;
+            const location = document.getElementById('locationInput').value;
+            
+            let url = `${API_URL}/services/get_services.php?`;
+            if (search) url += `search=${encodeURIComponent(search)}&`;
+            if (location) url += `location=${encodeURIComponent(location)}`;
+
+            try {
+                container.innerHTML = '<p>Loading...</p>';
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    container.innerHTML = '';
+                    if (data.data.length === 0) {
+                        container.innerHTML = '<p>No services found matching your criteria.</p>';
+                        return;
+                    }
+
+                    data.data.forEach(s => {
+                        let stars = s.avg_rating > 0 ? '⭐'.repeat(Math.round(s.avg_rating)) : 'New';
+                        container.innerHTML += `
+                            <div class="card">
+                                <h3>${s.service_name}</h3>
+                                <div class="location">📍 ${s.location}</div>
+                                <div class="price"> ₹${s.price}</div>
+                                <p style="font-size: 0.95rem; margin-bottom: 1rem; flex-grow: 1;">${s.description}</p>
+                                <div style="margin-bottom: 1rem;">
+                                    <span class="stars">${stars}</span> 
+                                    <small>(${s.review_count} reviews)</small>
+                                </div>
+                                <p style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 1rem;">By ${s.provider_name}</p>
+                                <button class="btn" style="width: 100%;" onclick="openBookingModal(${s.id}, '${s.service_name.replace(/'/g, "\\'")}')">Book Now</button>
+                            </div>
+                        `;
+                    });
+                }
+            } catch (err) {
+                container.innerHTML = '<p class="alert error">Failed to load services.</p>';
+            }
+        }
+
+        function openBookingModal(serviceId, serviceName) {
+            const user = JSON.parse(localStorage.getItem('sls_user'));
+            if (!user) {
+                alert('You must be logged in to book a service.');
+                window.location.href = 'login.html';
+                return;
+            }
+            if (user.role !== 'customer') {
+                alert('Only customers can book services.');
+                return;
+            }
+            
+            currentServiceId = serviceId;
+            document.getElementById('modalServiceName').innerText = serviceName;
+            document.getElementById('bookingModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('bookingModal').style.display = 'none';
+            currentServiceId = null;
+        }
+
+        async function submitBooking() {
+            const date = document.getElementById('bookingDate').value;
+            if (!date) {
+                showAlert('modalAlert', 'Please select a date.', 'error');
+                return;
+            }
+
+            const user = JSON.parse(localStorage.getItem('sls_user'));
+            const btn = document.getElementById('confirmBookBtn');
+            btn.textContent = 'Booking...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(`${API_URL}/bookings/book_service.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        customer_id: user.id,
+                        service_id: currentServiceId,
+                        booking_date: date
+                    })
+                });
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    showAlert('modalAlert', 'Booked successfully!', 'success');
+                    setTimeout(() => {
+                        closeModal();
+                        window.location.href = 'customer-dashboard.html';
+                    }, 1500);
+                } else {
+                    showAlert('modalAlert', data.message || 'Error occurred.', 'error');
+                }
+            } catch (err) {
+                showAlert('modalAlert', 'Network error.', 'error');
+            } finally {
+                btn.textContent = 'Confirm Booking';
+                btn.disabled = false;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', fetchServices);
+    </script>
+</body>
+</html>

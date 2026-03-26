@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Smart Local Services</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body style="background: var(--bg-color);">
+
+    <header>
+        <a href="../index.html" class="logo">🛠️ LocalServe</a>
+        <nav>
+            <ul id="auth-links"></ul> <!-- Default loaded from main.js -->
+            <ul id="user-nav" style="display: none;"></ul>
+        </nav>
+    </header>
+
+    <div class="auth-container">
+        <h2>Create an Account</h2>
+        <div id="registerAlert"></div>
+        <form id="registerForm">
+            <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" required placeholder="John Doe">
+            </div>
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" required placeholder="you@example.com">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" required placeholder="••••••••">
+            </div>
+            <div class="form-group">
+                <label for="role">I am a...</label>
+                <select id="role" required>
+                    <option value="customer">Customer (Looking for services)</option>
+                    <option value="provider">Service Provider (Offering services)</option>
+                </select>
+            </div>
+            <button type="submit" class="btn auth-btn">Register</button>
+        </form>
+        <div class="auth-links">
+            <p>Already have an account? <a href="login.html">Login</a></p>
+        </div>
+    </div>
+
+    <script src="../js/main.js"></script>
+    <script>
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            btn.textContent = 'Registering...';
+            btn.disabled = true;
+
+            const payload = {
+                name: document.getElementById('name').value,
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value,
+                role: document.getElementById('role').value
+            };
+
+            try {
+                const res = await fetch(`${API_URL}/auth/register.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    showAlert('registerAlert', 'Registration successful! You can now login.', 'success');
+                    setTimeout(() => {
+                        window.location.href = 'login.html';
+                    }, 1500);
+                } else {
+                    showAlert('registerAlert', data.message || 'Registration failed.', 'error');
+                    btn.textContent = 'Register';
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                showAlert('registerAlert', 'Network error. Please try again later.', 'error');
+                btn.textContent = 'Register';
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

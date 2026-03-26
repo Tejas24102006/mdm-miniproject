@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Smart Local Services</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/style.css">
+    <style>
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: var(--white);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+        .stat-card h3 {
+            color: var(--text-light);
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+    </style>
+</head>
+<body style="background: var(--bg-color);">
+
+    <header>
+        <a href="../index.html" class="logo">🛠️ LocalServe (Admin)</a>
+        <nav>
+            <ul id="user-nav" style="display: none;"></ul>
+        </nav>
+    </header>
+
+    <div class="container">
+        <h2>System Overview</h2>
+        <div id="adminAlert"></div>
+
+        <div class="stats-grid" id="statsWrapper">
+            <p>Loading analytics...</p>
+        </div>
+
+        <h3>Recent Bookings</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th>Provider</th>
+                        <th>Service</th>
+                        <th>Price</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="allBookingsTableBody">
+                    <tr><td colspan="6">Loading bookings...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="../js/main.js"></script>
+    <script>
+        let user = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            user = JSON.parse(localStorage.getItem('sls_user'));
+            if (!user || user.role !== 'admin') {
+                window.location.href = 'login.html';
+                return;
+            }
+            fetchAdminStats();
+            fetchAllBookings();
+        });
+
+        async function fetchAdminStats() {
+            const wrapper = document.getElementById('statsWrapper');
+            try {
+                const res = await fetch(`${API_URL}/admin/stats.php?admin_id=${user.id}`);
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    const stats = data.data;
+                    const totalUsers = (parseInt(stats.users.customer) || 0) + (parseInt(stats.users.provider) || 0) + (parseInt(stats.users.admin) || 0);
+                    const completedBookings = parseInt(stats.bookings_pipeline?.completed) || 0;
+                    
+                    wrapper.innerHTML = `
+                        <div class="stat-card">
+                            <h3>Total Users</h3>
+                            <div class="value">${totalUsers}</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Providers</h3>
+                            <div class="value">${stats.users.provider || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Completed Bookings</h3>
+                            <div class="value">${completedBookings}</div>
+                        </div>
+                        <div class="stat-card">
+                            <h3>Platform Revenue (10%)</h3>
+                            <div class="value"> ₹${stats.revenue.platform_revenue_10_percent.toFixed(2)}</div>
+                        </div>
+                    `;
+                } else {
+                    wrapper.innerHTML = `<p class="error">${data.message}</p>`;
+                }
+            } catch (err) {
+                wrapper.innerHTML = '<p class="error">Failed to load stats.</p>';
+            }
+        }
+
+        async function fetchAllBookings() {
+            const tbody = document.getElementById('allBookingsTableBody');
+            try {
+                const res = await fetch(`${API_URL}/bookings/get_bookings.php`);
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    tbody.innerHTML = '';
+                    if (data.data.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No bookings found.</td></tr>';
+                        return;
+                    }
+
+                    // Show only top 10 recent
+                    data.data.slice(0, 10).forEach(b => {
+                        tbody.innerHTML += `
+                            <tr>
+                                <td>${b.booking_date}</td>
+                                <td>${b.customer_name}</td>
+                                <td>${b.provider_name}</td>
+                                <td>${b.service_name}</td>
+                                <td>$${b.price}</td>
+                                <td><span class="badge ${b.status}">${b.status}</span></td>
+                            </tr>
+                        `;
+                    });
+                }
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="6" class="error">Failed to load bookings.</td></tr>';
+            }
+        }
+    </script>
+</body>
+</html>

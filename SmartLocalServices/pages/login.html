@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Smart Local Services</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../css/style.css">
+</head>
+<body style="background: var(--bg-color);">
+
+    <header>
+        <a href="../index.html" class="logo">🛠️ LocalServe</a>
+        <nav>
+            <ul id="auth-links"></ul> <!-- Injected via JS -->
+            <ul id="user-nav" style="display: none;"></ul>
+        </nav>
+    </header>
+
+    <div class="auth-container">
+        <h2>Welcome Back</h2>
+        <div id="loginAlert"></div>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" required placeholder="you@example.com">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" required placeholder="••••••••">
+            </div>
+            <button type="submit" class="btn auth-btn">Login</button>
+        </form>
+        <div class="auth-links">
+            <p>Don't have an account? <a href="register.html">Sign up</a></p>
+        </div>
+    </div>
+
+    <script src="../js/main.js"></script>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            btn.textContent = 'Logging in...';
+            btn.disabled = true;
+
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const res = await fetch(`${API_URL}/auth/login.php`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    localStorage.setItem('sls_user', JSON.stringify(data.user));
+                    showAlert('loginAlert', 'Login successful! Redirecting...', 'success');
+                    
+                    setTimeout(() => {
+                        let dashboardLink = "customer-dashboard.html";
+                        if (data.user.role === 'provider') dashboardLink = "provider-dashboard.html";
+                        if (data.user.role === 'admin') dashboardLink = "admin-dashboard.html";
+                        window.location.href = dashboardLink;
+                    }, 1000);
+                } else {
+                    showAlert('loginAlert', data.message || 'Login failed.', 'error');
+                    btn.textContent = 'Login';
+                    btn.disabled = false;
+                }
+            } catch (error) {
+                showAlert('loginAlert', 'Network error.', 'error');
+                btn.textContent = 'Login';
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

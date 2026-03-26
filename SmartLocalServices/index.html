@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Smart Local Services</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="css/style.css" />
+    </head>
+    <body>
+        <header>
+            <a href="index.html" class="logo">🛠️ LocalServe</a>
+            <nav>
+                <ul id="auth-links"></ul>
+                <!-- Injected by JS -->
+                <ul id="user-nav" style="display: none"></ul>
+            </nav>
+        </header>
+
+        <section class="hero">
+            <h1>Find Trusted Local Services Instantly</h1>
+            <p>
+                Book expert electricians, plumbers, tutors, and cleaners in your
+                area with verified reviews and secure bookings.
+            </p>
+            <a
+                href="pages/services.html"
+                class="btn"
+                style="font-size: 1.1rem; padding: 0.75rem 2rem"
+                >Explore Services</a
+            >
+        </section>
+
+        <div class="container">
+            <h2>Popular Services</h2>
+            <div class="grid" id="featured-services">
+                <p>Loading services...</p>
+            </div>
+        </div>
+
+        <script src="js/main.js"></script>
+        <script>
+            document.addEventListener("DOMContentLoaded", async () => {
+                const container = document.getElementById("featured-services");
+                try {
+                    const response = await fetch(
+                        `${API_URL}/services/get_services.php`,
+                    );
+                    const result = await response.json();
+
+                    if (result.status === "success") {
+                        container.innerHTML = "";
+                        const services = result.data.slice(0, 6);
+                        if (services.length === 0) {
+                            container.innerHTML =
+                                "<p>No services found yet.</p>";
+                            return;
+                        }
+
+                        services.forEach((s) => {
+                            let stars =
+                                s.avg_rating > 0
+                                    ? "⭐".repeat(Math.round(s.avg_rating))
+                                    : "New";
+                            container.innerHTML += `
+                            <div class="card">
+                                <h3>${s.service_name}</h3>
+                                <div class="location">📍 ${s.location}</div>
+                                <div class="price"> ₹${s.price}</div>
+                                <div style="margin-bottom: 1rem;">
+                                    <span class="stars">${stars}</span>
+                                    <small>(${s.review_count} reviews)</small>
+                                </div>
+                                <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 1rem; flex-grow: 1;">
+                                    By ${s.provider_name}
+                                </p>
+                                <a href="pages/services.html?id=${s.id}" class="btn btn-outline" style="text-align: center;">View Details</a>
+                            </div>
+                        `;
+                        });
+                    }
+                } catch (error) {
+                    container.innerHTML =
+                        '<p class="alert error">Failed to load services.</p>';
+                }
+            });
+        </script>
+    </body>
+</html>
